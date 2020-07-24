@@ -1,94 +1,87 @@
 """
-SSW-810-WS Homework 9 - University Database (Test version)
+SSW-810-WS Homework 10 - Student Repository (Test version)
 
 @author: Karl Olsen
 
 Credit to Kane Blueriver for creation/maintenance of PTable ("Pretty table") library (https://pypi.org/project/PTable/0.9.0/)
+
+
+
+NOTES TO PROFESSOR: 
+-Because University.__init__() involves calling the functions to print the pretty tables, creating a University to test will print
+those tables before running test cases when this code is run.
+
+-With the switch to only skipping invalid lines for input (instead of raising errors), I've made a single test suite function reading in a variety of invalid .txt 
+files for majors, students, instructors, and grades. Because the source code naturally prints out invalid input lines, feel free to comment out the call to the function 
+on line 73 if you feel the output is too cluttered.
 """
 
 from prettytable import PrettyTable as pt
-from HW09_Karl_Olsen import Student, Instructor, University
+from Student_Repository_Karl_Olsen import Student, Instructor, University, Major
 import unittest
 
 class TestUniversity(unittest.TestCase):
-    stevens:University = University("Stevens", "C:/Users/Karl Olsen/Desktop/SSW_810/HW9/")
+    stevens:University = University("Stevens", "C:/Users/Karl Olsen/Desktop/SSW_810/HW10/")
 
-    def test_read_instructors(self) -> None:
-        """ Tests for errors in reading in instructor .txt files"""
+    def run_invalid_files(self) -> None:
+        """ .txt files each with a line of varying invalid input to test that such invalid input will be "ignored" when attempting to add to University's attributes """
+        # Invalid major files
+        self.stevens.read_majors("major_wrong_flag.txt")
+        self.stevens.read_majors("major_wrong_name.txt")
+        self.stevens.read_majors("major_wrong_class_letters.txt")
+        self.stevens.read_majors("major_wrong_class_numbers.txt")
 
-        # Instructor's name is given as a number
-        with self.assertRaises(TypeError):
-            self.stevens.read_instructors("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/instructor_wrong_name.txt")
-        
-        # Instructor's ID is given as letters
-        with self.assertRaises(TypeError):
-            self.stevens.read_instructors("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/instructor_wrong_id.txt")
-
-        # Instructor's department is given as a number
-        with self.assertRaises(TypeError):
-            self.stevens.read_instructors("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/instructor_wrong_dept.txt")
-
-        # File has an extra field in a line
+        # Having the wrong # of fields raises a ValueError instead of just skipping the line and printing the issue
         with self.assertRaises(ValueError):
-            self.stevens.read_instructors("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/instructor_wrong_num_fields.txt")
+            self.stevens.read_majors("major_wrong_num_fields.txt")
 
-    def test_read_students(self) -> None:     
-        """ Tests for errors in reading in student .txt files """   
-
-        # Student's name is given as a number 
-        with self.assertRaises(TypeError):
-            self.stevens.read_students("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/student_wrong_name.txt")
+        # Invalid instructor files
+        self.stevens.read_instructors("instructor_wrong_dept.txt")
+        self.stevens.read_instructors("instructor_wrong_id.txt")
+        self.stevens.read_instructors("instructor_wrong_name.txt")
         
-        # Student's ID is given as letters
-        with self.assertRaises(TypeError):
-            self.stevens.read_students("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/student_wrong_id.txt")
-
-        # Student's major is given as a number
-        with self.assertRaises(TypeError):
-            self.stevens.read_students("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/student_wrong_dept.txt")
-
-        # File has an extra field in a line
+        # Having the wrong # of fields raises a ValueError instead of just skipping the line and printing the issue
         with self.assertRaises(ValueError):
-            self.stevens.read_students("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/student_wrong_num_fields.txt")
+            self.stevens.read_instructors("instructor_wrong_num_fields.txt")
 
-    def test_read_grades(self) -> None:
-        """ Tests for errors in reading in grade .txt files """
+        # Invalid student files
+        self.stevens.read_students("student_wrong_id.txt")
+        self.stevens.read_students("student_wrong_major.txt")
+        self.stevens.read_students("student_wrong_name.txt")
 
-        # Student ID is given as letters
-        with self.assertRaises(TypeError):
-            self.stevens.read_grades("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/grades_wrong_student_id.txt")
-        
-        # Course major (i.e. SSW) given as numbers
-        with self.assertRaises(TypeError):
-            self.stevens.read_grades("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/grades_wrong_class_letters.txt")
+        # Having the wrong # of fields raises a ValueError instead of just skipping the line and printing the issue
+        with self.assertRaises(ValueError):
+            self.stevens.read_students("student_wrong_num_fields.txt")
 
-        # Course identifier (i.e. 810) given as letters
-        with self.assertRaises(TypeError):
-            self.stevens.read_grades("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/grades_wrong_class_numbers.txt")
-        
-        # Grade given as a number instead of a letter
-        with self.assertRaises(TypeError):
-            self.stevens.read_grades("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/grades_wrong_grade_as_a_number.txt")
+        # Invalid grade files
+        self.stevens.read_grades("grades_wrong_class_letters.txt")
+        self.stevens.read_grades("grades_wrong_class_numbers.txt")
+        self.stevens.read_grades("grades_wrong_grade_as_a_number.txt")
+        self.stevens.read_grades("grades_wrong_grade_punctuation.txt")
+        self.stevens.read_grades("grades_wrong_grade_too_long.txt")
+        self.stevens.read_grades("grades_wrong_instructor_id.txt")
+        self.stevens.read_grades("grades_wrong_student_id.txt")
 
-        # Grade marker given as punctuation that is not '-' or '+'
-        with self.assertRaises(TypeError):
-            self.stevens.read_grades("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/grades_wrong_grade_punctuation.txt")
-        
-        # Grade given is more than 1 letter (and optional punctuation) long
-        with self.assertRaises(TypeError):
-            self.stevens.read_grades("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/grades_wrong_grade_too_long.txt")
-
-        # Instructor ID is given as letters
-        with self.assertRaises(TypeError):
-            self.stevens.read_grades("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/grades_wrong_instructor_id.txt")
+        # Having the wrong # of fields raises a ValueError instead of just skipping the line and printing the issue
+        with self.assertRaises(ValueError):
+            self.stevens.read_grades("grades_wrong_num_fields.txt")
 
     def test_data(self) -> None:
-        """ Given valid instructor, student, and grade .txt files, tests accuracy of resulting pretty tables' data """
+        """ Given instructor, student, grade, and major .txt files, tests accuracy of resulting pretty tables' data """
         
-        self.stevens.read_instructors("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/instructors.txt")
-        self.stevens.read_students("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/students.txt")
-        self.stevens.read_grades("C:/Users/Karl Olsen/Desktop/SSW_810/HW9/grades.txt")
+        # Read in a test suite of invalid files that should not add anything to the University's Majors/Students/Instructors attributes
+        self.run_invalid_files()
 
+        # Testing majors
+        expected_majors:str =("+-------+----------------------------------------------+-----------------------------------+\n"
+            "| Major |               Required Courses               |             Electives             |\n"
+            "+-------+----------------------------------------------+-----------------------------------+\n"
+            "|  SFEN | ['SSW 540', 'SSW 555', 'SSW 564', 'SSW 567'] |   ['CS 501', 'CS 513', 'CS 545']  |\n"
+            "|  SYEN |      ['SYS 612', 'SYS 671', 'SYS 800']       | ['SSW 540', 'SSW 565', 'SSW 810'] |\n"
+            "+-------+----------------------------------------------+-----------------------------------+")
+        self.assertEqual(expected_majors, self.stevens.get_pretty_string_majors())
+        
+        # Testing instructors
         expected_instructors:str = ("+-------+-------------+------+---------+----------+\n"
             "|  CWID |     Name    | Dept |  Course | Students |\n"
             "+-------+-------------+------+---------+----------+\n"
@@ -109,20 +102,21 @@ class TestUniversity(unittest.TestCase):
             "+-------+-------------+------+---------+----------+")
         self.assertEqual(expected_instructors, self.stevens.get_pretty_string_instructors())
 
-        expected_students:str = ("+-------+-------------+---------------------------------------------+\n"
-            "|  CWID |     Name    |              Completed Courses              |\n"
-            "+-------+-------------+---------------------------------------------+\n"
-            "| 10103 |  Baldwin, C | ['CS 501', 'SSW 564', 'SSW 567', 'SSW 687'] |\n"
-            "| 10115 |   Wyatt, X  | ['CS 545', 'SSW 564', 'SSW 567', 'SSW 687'] |\n"
-            "| 10172 |  Forbes, I  |            ['SSW 555', 'SSW 567']           |\n"
-            "| 10175 | Erickson, D |      ['SSW 564', 'SSW 567', 'SSW 687']      |\n"
-            "| 10183 |  Chapman, O |                 ['SSW 689']                 |\n"
-            "| 11399 |  Cordova, I |                 ['SSW 540']                 |\n"
-            "| 11461 |  Wright, U  |      ['SYS 611', 'SYS 750', 'SYS 800']      |\n"
-            "| 11658 |   Kelly, P  |                 ['SSW 540']                 |\n"
-            "| 11714 |  Morton, A  |            ['SYS 611', 'SYS 645']           |\n"
-            "| 11788 |  Fuller, E  |                 ['SSW 540']                 |\n"
-            "+-------+-------------+---------------------------------------------+")
+        # Testing students
+        expected_students:str = ("+-------+-------------+-------+---------------------------------------------+----------------------------------------------+-----------------------------------+------+\n"
+            "|  CWID |     Name    | Major |              Completed Courses              |              Remaining Required              |        Remaining Electives        | GPA  |\n"
+            "+-------+-------------+-------+---------------------------------------------+----------------------------------------------+-----------------------------------+------+\n"
+            "| 10103 |  Baldwin, C |  SFEN | ['CS 501', 'SSW 564', 'SSW 567', 'SSW 687'] |            ['SSW 540', 'SSW 555']            |                 []                | 3.44 |\n"
+            "| 10115 |   Wyatt, X  |  SFEN | ['CS 545', 'SSW 564', 'SSW 567', 'SSW 687'] |            ['SSW 540', 'SSW 555']            |                 []                | 3.81 |\n"
+            "| 10172 |  Forbes, I  |  SFEN |            ['SSW 555', 'SSW 567']           |            ['SSW 540', 'SSW 564']            |   ['CS 501', 'CS 513', 'CS 545']  | 3.88 |\n"
+            "| 10175 | Erickson, D |  SFEN |      ['SSW 564', 'SSW 567', 'SSW 687']      |            ['SSW 540', 'SSW 555']            |   ['CS 501', 'CS 513', 'CS 545']  | 3.58 |\n"
+            "| 10183 |  Chapman, O |  SFEN |                 ['SSW 689']                 | ['SSW 540', 'SSW 555', 'SSW 564', 'SSW 567'] |   ['CS 501', 'CS 513', 'CS 545']  | 4.0  |\n"
+            "| 11399 |  Cordova, I |  SYEN |                 ['SSW 540']                 |      ['SYS 612', 'SYS 671', 'SYS 800']       |                 []                | 3.0  |\n"
+            "| 11461 |  Wright, U  |  SYEN |      ['SYS 611', 'SYS 750', 'SYS 800']      |            ['SYS 612', 'SYS 671']            | ['SSW 540', 'SSW 565', 'SSW 810'] | 3.92 |\n"
+            "| 11658 |   Kelly, P  |  SYEN |                      []                     |      ['SYS 612', 'SYS 671', 'SYS 800']       | ['SSW 540', 'SSW 565', 'SSW 810'] | 0.0  |\n"
+            "| 11714 |  Morton, A  |  SYEN |            ['SYS 611', 'SYS 645']           |      ['SYS 612', 'SYS 671', 'SYS 800']       | ['SSW 540', 'SSW 565', 'SSW 810'] | 3.0  |\n"
+            "| 11788 |  Fuller, E  |  SYEN |                 ['SSW 540']                 |      ['SYS 612', 'SYS 671', 'SYS 800']       |                 []                | 4.0  |\n"
+            "+-------+-------------+-------+---------------------------------------------+----------------------------------------------+-----------------------------------+------+")
         self.assertEqual(expected_students, self.stevens.get_pretty_string_students())
 
 
