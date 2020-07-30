@@ -1,20 +1,22 @@
 """
-SSW-810-WS Homework 10 - Student Repository (Source version)
+SSW-810-WS Homework 11 - Student Repository (Source version)
 
 @author: Karl Olsen
 
 Credit to Kane Blueriver for creation/maintenance of PTable ("Pretty table") library (https://pypi.org/project/PTable/0.9.0/)
 
 
-IMPORTANT NOTES: 
--Changed from previous iteration: If an input .txt has an invalid line (i.e. "ABC" for a CWID in students.txt), the program will instead print out the invalid line, 
-not use that line's information, and continue reading the next line in the file instead of raising errors.
+NOTE TO PROFESSOR:
+-Regarding reading in the .db file, my project is set up under the assumption that it is named "Student_Repository.db" and exists within the same directory
+as the major/student/instructor/grade .txt files. If you feel a different method would be better, please let me know.
+
+-Github branch: https://github.com/kolsen2/Student-Repository/tree/HW11
 """
 
 from prettytable import PrettyTable as pt
 from collections import defaultdict
 from typing import List, Tuple, IO, Dict, Iterator, DefaultDict
-import os
+import os, sqlite3
 
 class Student:
     def __init__(self, cwid:str, name:str, major:str) -> None:
@@ -34,7 +36,7 @@ class Student:
         """ Returns a list of the student's courses in which they got a C or higher """
         passed_courses:List[str] = []
         for course, grade in self._completed_courses.items():
-            if grade == "A" or grade == "A-" or grade == "B+" or grade == "B" or grade == "B-" or grade == "C+" or grade == "C":
+            if grade in ("A", "A-", "B+", "B", "B-", "C+", "C"):
                 passed_courses.append(course)
         
         return passed_courses
@@ -43,26 +45,17 @@ class Student:
         """ Update the student's specific Major's required/elective courses based on what courses the student has completed """
         self._major.update_reqs(self._completed_courses)
 
-    def update_GPA(self) -> None:
-        """ Iterates through all of the studne'ts completed courses to calculate their GPA """
+    def update_GPA(self, grade_values:Dict[str, float]) -> None:
+        """ Iterates through all of the student's completed courses to calculate their GPA """
+        # if a student hasn't taken any courses yet, their GPA is 0
+        if self._completed_courses == {}:
+            self.gpa = 0
+            return
+
         new_gpa:float = 0
         for grade in self._completed_courses.values():
-            if grade == 'A':
-                new_gpa += 4.0
-            elif grade == 'A-':
-                new_gpa += 3.75
-            elif grade == 'B+':
-                new_gpa += 3.25
-            elif grade == 'B':
-                new_gpa += 3.0
-            elif grade == 'B-':
-                new_gpa += 2.75
-            elif grade == 'C+':
-                new_gpa += 2.25
-            elif grade == 'C':
-                new_gpa += 2.0
-            # Anything below a C doesn't add anything
-        
+            new_gpa += grade_values[grade]
+
         # Once sum is calculated, divide it by the # of courses to get a GPA (rounding to 2 decimal places)
         self._gpa = round(new_gpa / len(self._completed_courses.keys()), 2)
 
@@ -104,7 +97,7 @@ class Major:
         for key, value in completed.items():
             # Make sure student passed course before removing it
             # NOTE: This comes with expectation that grade values given are actual grade values
-            if value == "C-" or value == "D+" or value == "D" or value == "D-" or value == "F":
+            if value in ("C-", "D+", "D", "D-", "F"):
                 continue
             else:
                 if key in self._req_courses:
@@ -117,10 +110,8 @@ class Major:
         """ helper function to duplicate a University's Major instance into a an independent copy for a Student instance"""
         temp:Major = Major(self.name)
 
-        for req in self._req_courses:
-            temp.add_course(req, "R")
-        for ele in self._ele_courses:
-            temp.add_course(ele, "E")
+        temp._req_courses = list(self._req_courses)
+        temp._ele_courses = list(self._ele_courses)
 
         return temp
 
@@ -160,14 +151,16 @@ class University:
             self._instructors:Dict[str, Instructor] = {}
             # key = student CWID, value = respective student class object
             self._students:Dict[str, Student] = {}
-            self._majors:List[Major] = []
+            self._majors:Dict[str, Major] = {}
             self._p_instructors = pt()
             self._p_students = pt()
-            self._p_majors = pt()        
+            self._p_majors = pt()
+            self._p_summary = pt()
+
+            self._grade_values:Dict[str, float] = {'A': 4.0, 'A-': 3.75, 'B+': 3.25, 'B': 3.0, 'B-': 2.75, 'C+': 2.25, 'C': 2.0, 'C-': 0, 'D+': 0, 'D': 0, 'D-': 0, 'F': 0}
 
             # read in respective files
             self.read_majors("majors.txt")
-
             self.read_students("students.txt")
             self.read_instructors("instructors.txt")
             self.read_grades("grades.txt")
@@ -175,12 +168,16 @@ class University:
             # Once grades/courses have been read in, update students' major requirements & GPAs
             for student in self._students.values():
                 student.update_major_reqs()
-                student.update_GPA()
+                student.update_GPA(self._grade_values)
             
             # have __init__ call pretty_print for students and instructors
             self._pretty_print_majors()
             self._pretty_print_students()
             self._pretty_print_instructors()
+
+            # print table of student grade summary via database
+            self._print_student_grade_summary()
+
         except FileNotFoundError as fnf:
             print(fnf)
 
@@ -203,20 +200,17 @@ class University:
                 print(f"MAJOR READING ERROR: Second value in row must be made of letters indicating department, followed by a space and 3 numbers. Skipping line {name} {flag} {course_name}")
                 continue
 
-            # if major name doesn't exist in the University's self.majors List, create it and add it to the University's self.majors List
-            if not any(major.name == name for major in self._majors):
+            # if major name doesn't already exist in the University's self._majors Dict, create it and add it to that Dict
+            if not name in self._majors:
                 temp_maj:Major = Major(name)
-                self._majors.append(temp_maj)
-            
+                self._majors[name] = temp_maj
+
             # Once the University's Major has been identified, add the line's course_name and its flag to that major
-            for major in self._majors:
-                if major.name == name:
-                    major.add_course(course_name, flag)
+            self._majors[name].add_course(course_name, flag)
     
-    # Would normally make protected, but deliberately keeping public for testing purposes
     def read_instructors(self, path:str) -> None:
         """ Given a .txt file, reads in info for instructors and populates the university's list of instructors with that info """
-        for cwid, name, dept in file_reader(path, 3, "|", True):
+        for cwid, name, dept in file_reader(path, 3, "\t", True):
             # First element (CWID) must be made only of numbers
             if not cwid.isdigit():
                 print(f"INSTRUCTOR READING ERROR: First value in row must be CWID made only of numbers. Skipping line {cwid} {name} {dept}")
@@ -235,10 +229,9 @@ class University:
             temp:Instructor = Instructor(cwid, name, dept)
             self._instructors[cwid] = temp
     
-    # Would normally make protected, but deliberately keeping public for testing purposes
     def read_students(self, path:str) -> None:
         """ Given a .txt file, reads in info for students and populates the university's list of students with that info """
-        for cwid, name, major in file_reader(path, 3, ";", True):
+        for cwid, name, major in file_reader(path, 3, "\t", True):
             # First element (CWID) must be made only of numbers
             if not cwid.isdigit():
                 print(f"STUDENT READING ERROR: First value in row must be CWID made only of numbers. Skipping line {cwid} {name} {major}")
@@ -254,26 +247,21 @@ class University:
                 continue
 
             # if attempting to assign a non-existent major to a student, skip that line
-            if not any(maj.name == major for maj in self._majors):
+            if not major in self._majors:
                 print(f"No major named {major} at University. Skipping read_student line {cwid} {name} {major}")
                 continue
             
-            # Note to professor for screenshot: this is in the context of the University.read_students() function where "self" refers to the University
-            for maj in self._majors:
-                # "major" in this context is the major given in a line from students.txt (i.e. SFEN or SYEN)
-                if major == maj.name:
-                    # need to create a copy of "maj" and assign it to student (this doesn't work, just an attempt at copying the class object)
-                    temp_major:Major = maj.duplicate()
+            # need to create a copy of "maj" and assign it to student (this doesn't work, just an attempt at copying the class object)
+            temp_major:Major = self._majors[major].duplicate()
 
-                    temp:Student = Student(cwid, name, temp_major)
+            temp:Student = Student(cwid, name, temp_major)
 
-                    # add student to University's "students" Dict
-                    self._students[cwid] = temp
+            # add student to University's "students" Dict
+            self._students[cwid] = temp
 
-    # Would normally make protected, but deliberately keeping public for testing purposes
     def read_grades(self, path:str) -> None:
         """ Given a .txt file, reads in a student ID, the class, the student's grade, and the instructor's ID and applies the relevant info to the corresponding student and instructor """
-        for stud_cwid, course, grade, inst_cwid in file_reader(path, 4, "|", True):
+        for stud_cwid, course, grade, inst_cwid in file_reader(path, 4, "\t", True):
             # First element (student CWID) must be made only of numbers
             if not stud_cwid.isdigit():
                 print(f"GRADE READING ERROR: First value in row must be student CWID made only of numbers. Skipping line {stud_cwid} {course} {grade} {inst_cwid}")
@@ -295,7 +283,7 @@ class University:
 
             # Skipping any line with a CWID of a student or instructor that does not currently exist
             # NOTE: Probably not 100% necessary to output which line is being skipped to the average user, but keeping in for debug purposes.
-            if self._students.get(stud_cwid) == None:
+            if stud_cwid not in self._students:
                 print(f"Non-existent student CWID given. Skipping line {stud_cwid} {course} {grade} {inst_cwid}")
                 continue                
             elif self._instructors.get(inst_cwid) == None:
@@ -312,7 +300,7 @@ class University:
         # Since get_pretty_string_majors() already generates the pretty table and returns it as a string, can just print that instead of having the 
         # "same" code running twice in 2 functions
         print("Majors Summary")
-        print(self.get_pretty_string_majors())
+        print(self._get_pretty_string_majors())
 
 
     def _pretty_print_students(self) -> None:
@@ -320,30 +308,29 @@ class University:
         # Since get_pretty_string_students() already generates the pretty table and returns it as a string, can just print that instead of having the 
         # "same" code running twice in 2 functions
         print("Student Summary")
-        print(self.get_pretty_string_students())
+        print(self._get_pretty_string_students())
 
     def _pretty_print_instructors(self) -> None:
         """ Basic pretty_print output function for students """
         # Since get_pretty_string_instructors() already generates the pretty table and returns it as a string, can just print that instead of having the 
         # "same" code running twice in 2 functions
         print("Instructor Summary")
-        print(self.get_pretty_string_instructors())
+        print(self._get_pretty_string_instructors())
 
     # Would normally make protected, but deliberately keeping public for testing purposes
-    def get_pretty_string_majors(self) -> str:
-        """ returns pretty_table of majors as a string """
+    def _get_pretty_string_majors(self) -> str:
+        """ populates the pretty_table of majors and returns it as a string """
         # Clearing table because if the function is called more than once without clearing, the table will effectively duplicate itself, returning all elements twice
         self._p_majors.clear_rows()
 
         self._p_majors.field_names = ["Major", "Required Courses", "Electives"]
-        for major in self._majors:
+        for major in self._majors.values():
             self._p_majors.add_row(major.pt_info())
 
         return self._p_majors.get_string()
 
-    # Would normally make protected, but deliberately keeping public for testing purposes
-    def get_pretty_string_instructors(self) -> str:
-        """ returns pretty_table of instructors as a string """
+    def _get_pretty_string_instructors(self) -> str:
+        """ populates the pretty_table of instructors and returns it as a string """
         # Clearing table because if the function is called more than once without clearing, the table will effectively duplicate itself, returning all elements twice
         self._p_instructors.clear_rows()
 
@@ -354,9 +341,8 @@ class University:
 
         return self._p_instructors.get_string()
 
-    # Would normally make protected, but deliberately keeping public for testing purposes
-    def get_pretty_string_students(self) -> str:
-        """ returns pretty_table of students as a string """
+    def _get_pretty_string_students(self) -> str:
+        """ populates the pretty_table of students and returns it as a string """
         # Clearing table because if the function is called more than once without clearing, the table will effectively duplicate itself, printing all elements twice
         self._p_students.clear_rows()
 
@@ -365,6 +351,33 @@ class University:
             self._p_students.add_row(student.pt_info())
         
         return self._p_students.get_string()
+
+    def _print_student_grade_summary(self) -> None:
+        """ prints student grade summary using a database """
+        print("Student Grade Summary")
+        print(self._student_grades_table_db())
+
+    def _student_grades_table_db(self) -> str:
+        """ populates a pretty_table using a database """
+        try:
+            self._p_summary.clear_rows()
+            self._p_summary.field_names = ["Name", "CWID", "Course", "Grade", "Instructor"]
+
+            # db_path is set to find the file "Student_Repository.db" in the directory given in University's __init__()
+            db_path:str = os.path.join(os.getcwd(), "Student_Repository.db")
+
+            db:sqlite3.Connection = sqlite3.connect(db_path)
+            for row in db.execute("select s.Name as StudentName, s.CWID as StudentCWID, Course, Grade, i.Name as InstructorName From students s left join grades g on s.CWID = g.StudentCWID join instructors i on g.InstructorCWID = i.CWID"):
+                self._p_summary.add_row(row)
+            db.close()
+
+            # Sorting output table by name to match example output a bit more closely
+            return self._p_summary.get_string(sortby="Name")
+        #if the path given for the .db file doesn't exist
+        except sqlite3.OperationalError:
+            print(f"ERROR - {db_path} NOT A VALID .db FILE")
+
+
 
 def file_reader(path:str, fields:int, sep:str = ',', header:bool = False) -> Iterator[List[str]]:
     """ Reads a file and breaks it up into fields using a given separator (default ","). Can skip the first line by setting header to True (default False) """
@@ -396,8 +409,9 @@ def file_reader(path:str, fields:int, sep:str = ',', header:bool = False) -> Ite
 def main() -> None:  
     """
     try:
-        stevens:University = University("Stevens", "C:/Users/Karl Olsen/Desktop/SSW_810/HW10/")
-        NYU:University = University("NYU", "C:/Users/Karl Olsen/Desktop/SSW_810/HW11/")
+        stevens:University = University("Stevens", "C:/Users/Karl Olsen/Desktop/SSW_810/HW11/")
+        # NYU's path does not currently exist so should not do anything but print the FileNotFound error
+        #NYU:University = University("NYU", "C:/Users/Karl Olsen/Desktop/SSW_810/HW11/")
 
     except ValueError as v:
         print(v)

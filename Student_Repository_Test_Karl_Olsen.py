@@ -1,30 +1,28 @@
 """
-SSW-810-WS Homework 10 - Student Repository (Test version)
+SSW-810-WS Homework 11 - Student Repository (Test version)
 
 @author: Karl Olsen
 
 Credit to Kane Blueriver for creation/maintenance of PTable ("Pretty table") library (https://pypi.org/project/PTable/0.9.0/)
 
 
-
-NOTES TO PROFESSOR: 
--Because University.__init__() involves calling the functions to print the pretty tables, creating a University to test will print
-those tables before running test cases when this code is run.
-
--With the switch to only skipping invalid lines for input (instead of raising errors), I've made a single test suite function reading in a variety of invalid .txt 
-files for majors, students, instructors, and grades. Because the source code naturally prints out invalid input lines, feel free to comment out the call to the function 
-on line 73 if you feel the output is too cluttered.
+NOTE: Because this particular branch's feature is centered on interacting with the database and the relevant code does not interact with the code relevant
+to the "wrong" .txt files, I will not be including those .txt files in the .zip or branch with this version of the code and will keep run_invalid_files() commented out
 """
 
 from prettytable import PrettyTable as pt
 from Student_Repository_Karl_Olsen import Student, Instructor, University, Major
-import unittest
+from typing import Dict, Tuple, Set, List
+import unittest, sqlite3, os
 
 class TestUniversity(unittest.TestCase):
-    stevens:University = University("Stevens", "C:/Users/Karl Olsen/Desktop/SSW_810/HW10/")
+    stevens:University = University("Stevens", "C:/Users/Karl Olsen/Desktop/SSW_810/HW11/")
+    maxDiff = None
 
+    """
+    # COMMENTING OUT BECAUSE EXCLUDING THE "WRONG" FILES FROM THIS BUILD
     def run_invalid_files(self) -> None:
-        """ .txt files each with a line of varying invalid input to test that such invalid input will be "ignored" when attempting to add to University's attributes """
+        #.txt files each with a line of varying invalid input to test that such invalid input will be "ignored" when attempting to add to University's attributes 
         # Invalid major files
         self.stevens.read_majors("major_wrong_flag.txt")
         self.stevens.read_majors("major_wrong_name.txt")
@@ -65,60 +63,66 @@ class TestUniversity(unittest.TestCase):
         # Having the wrong # of fields raises a ValueError instead of just skipping the line and printing the issue
         with self.assertRaises(ValueError):
             self.stevens.read_grades("grades_wrong_num_fields.txt")
+    """
 
-    def test_data(self) -> None:
-        """ Given instructor, student, grade, and major .txt files, tests accuracy of resulting pretty tables' data """
-        
-        # Read in a test suite of invalid files that should not add anything to the University's Majors/Students/Instructors attributes
-        self.run_invalid_files()
-
+    def test_Majors(self) -> None:
         # Testing majors
-        expected_majors:str =("+-------+----------------------------------------------+-----------------------------------+\n"
-            "| Major |               Required Courses               |             Electives             |\n"
-            "+-------+----------------------------------------------+-----------------------------------+\n"
-            "|  SFEN | ['SSW 540', 'SSW 555', 'SSW 564', 'SSW 567'] |   ['CS 501', 'CS 513', 'CS 545']  |\n"
-            "|  SYEN |      ['SYS 612', 'SYS 671', 'SYS 800']       | ['SSW 540', 'SSW 565', 'SSW 810'] |\n"
-            "+-------+----------------------------------------------+-----------------------------------+")
-        self.assertEqual(expected_majors, self.stevens.get_pretty_string_majors())
-        
+        expected_majors:Dict[str, Major] = {'SFEN' : ['SFEN', ['SSW 540', 'SSW 555', 'SSW 810'], ['CS 501', 'CS 546']],
+                                            'CS' : ['CS', ['CS 546', 'CS 570'], ['SSW 565', 'SSW 810']]}
+
+        generated_majors:Dict[str, Major] = {name: major.pt_info() for name, major in self.stevens._majors.items()}
+        self.assertEqual(expected_majors, generated_majors)
+
+    def test_Instructors(self) -> None:
         # Testing instructors
-        expected_instructors:str = ("+-------+-------------+------+---------+----------+\n"
-            "|  CWID |     Name    | Dept |  Course | Students |\n"
-            "+-------+-------------+------+---------+----------+\n"
-            "| 98765 | Einstein, A | SFEN | SSW 567 |    4     |\n"
-            "| 98765 | Einstein, A | SFEN | SSW 540 |    3     |\n"
-            "| 98764 |  Feynman, R | SFEN | SSW 564 |    3     |\n"
-            "| 98764 |  Feynman, R | SFEN | SSW 687 |    3     |\n"
-            "| 98764 |  Feynman, R | SFEN |  CS 501 |    1     |\n"
-            "| 98764 |  Feynman, R | SFEN |  CS 545 |    1     |\n"
-            "| 98763 |  Newton, I  | SFEN | SSW 555 |    1     |\n"
-            "| 98763 |  Newton, I  | SFEN | SSW 689 |    1     |\n"
-            "| 98762 |  Hawking, S | SYEN | _______ |    0     |\n"
-            "| 98761 |  Edison, A  | SYEN | _______ |    0     |\n"
-            "| 98760 |  Darwin, C  | SYEN | SYS 800 |    1     |\n"
-            "| 98760 |  Darwin, C  | SYEN | SYS 750 |    1     |\n"
-            "| 98760 |  Darwin, C  | SYEN | SYS 611 |    2     |\n"
-            "| 98760 |  Darwin, C  | SYEN | SYS 645 |    1     |\n"
-            "+-------+-------------+------+---------+----------+")
-        self.assertEqual(expected_instructors, self.stevens.get_pretty_string_instructors())
+        expected_instructors:Set[Tuple(str, str, str, str, int)] = {('98764', 'Cohen, R', 'SFEN', 'CS 546', 1),
+                                                                    ('98763', 'Rowland, J', 'SFEN', 'SSW 810', 4),
+                                                                    ('98763', 'Rowland, J', 'SFEN', 'SSW 555', 1),
+                                                                    ('98762', 'Hawking, S', 'CS', 'CS 501', 1),
+                                                                    ('98762', 'Hawking, S', 'CS', 'CS 546', 1),
+                                                                    ('98762', 'Hawking, S', 'CS', 'CS 570', 1)}
 
-        # Testing students
-        expected_students:str = ("+-------+-------------+-------+---------------------------------------------+----------------------------------------------+-----------------------------------+------+\n"
-            "|  CWID |     Name    | Major |              Completed Courses              |              Remaining Required              |        Remaining Electives        | GPA  |\n"
-            "+-------+-------------+-------+---------------------------------------------+----------------------------------------------+-----------------------------------+------+\n"
-            "| 10103 |  Baldwin, C |  SFEN | ['CS 501', 'SSW 564', 'SSW 567', 'SSW 687'] |            ['SSW 540', 'SSW 555']            |                 []                | 3.44 |\n"
-            "| 10115 |   Wyatt, X  |  SFEN | ['CS 545', 'SSW 564', 'SSW 567', 'SSW 687'] |            ['SSW 540', 'SSW 555']            |                 []                | 3.81 |\n"
-            "| 10172 |  Forbes, I  |  SFEN |            ['SSW 555', 'SSW 567']           |            ['SSW 540', 'SSW 564']            |   ['CS 501', 'CS 513', 'CS 545']  | 3.88 |\n"
-            "| 10175 | Erickson, D |  SFEN |      ['SSW 564', 'SSW 567', 'SSW 687']      |            ['SSW 540', 'SSW 555']            |   ['CS 501', 'CS 513', 'CS 545']  | 3.58 |\n"
-            "| 10183 |  Chapman, O |  SFEN |                 ['SSW 689']                 | ['SSW 540', 'SSW 555', 'SSW 564', 'SSW 567'] |   ['CS 501', 'CS 513', 'CS 545']  | 4.0  |\n"
-            "| 11399 |  Cordova, I |  SYEN |                 ['SSW 540']                 |      ['SYS 612', 'SYS 671', 'SYS 800']       |                 []                | 3.0  |\n"
-            "| 11461 |  Wright, U  |  SYEN |      ['SYS 611', 'SYS 750', 'SYS 800']      |            ['SYS 612', 'SYS 671']            | ['SSW 540', 'SSW 565', 'SSW 810'] | 3.92 |\n"
-            "| 11658 |   Kelly, P  |  SYEN |                      []                     |      ['SYS 612', 'SYS 671', 'SYS 800']       | ['SSW 540', 'SSW 565', 'SSW 810'] | 0.0  |\n"
-            "| 11714 |  Morton, A  |  SYEN |            ['SYS 611', 'SYS 645']           |      ['SYS 612', 'SYS 671', 'SYS 800']       | ['SSW 540', 'SSW 565', 'SSW 810'] | 3.0  |\n"
-            "| 11788 |  Fuller, E  |  SYEN |                 ['SSW 540']                 |      ['SYS 612', 'SYS 671', 'SYS 800']       |                 []                | 4.0  |\n"
-            "+-------+-------------+-------+---------------------------------------------+----------------------------------------------+-----------------------------------+------+")
-        self.assertEqual(expected_students, self.stevens.get_pretty_string_students())
+        generated_instructors:Set[Tuple(str, str, str, str, int)] = {tuple(detail) for instructor in self.stevens._instructors.values() for detail in instructor.pt_info()}
+        self.assertEqual(expected_instructors, generated_instructors)
 
+    def test_Student(self) -> None:
+        """ Testing students """
+        expected_students:Dict[str, Student] = {'10103' : ['10103', 'Jobs, S', 'SFEN', ['CS 501', 'SSW 810'], ['SSW 540', 'SSW 555'], [], 3.38],
+                                                '10115' : ['10115', 'Bezos, J', 'SFEN', ['SSW 810'], ['SSW 540', 'SSW 555'], ['CS 501', 'CS 546'], 2.0],
+                                                '10183' : ['10183', 'Musk, E', 'SFEN',  ['SSW 555', 'SSW 810'], ['SSW 540'], ['CS 501', 'CS 546'], 4.0],
+                                                '11714' : ['11714', 'Gates, B', 'CS', ['CS 546', 'CS 570', 'SSW 810'], [], [], 3.5],}
+
+        generated_students:Dict[str, Student] = {cwid: student.pt_info() for cwid, student in self.stevens._students.items()}
+        self.assertEqual(expected_students, generated_students)
+
+    def test_db_table(self) -> None:
+        """ testing data of rows generated from database """
+
+        expected_rows:List[str] = [('Jobs, S', '10103', 'SSW 810', 'A-', 'Rowland, J'), 
+                                ('Jobs, S', '10103', 'CS 501', 'B', 'Hawking, S'), 
+                                ('Bezos, J', '10115', 'SSW 810', 'A', 'Rowland, J'), 
+                                ('Bezos, J', '10115', 'CS 546', 'F', 'Hawking, S'), 
+                                ('Musk, E', '10183', 'SSW 555', 'A', 'Rowland, J'), 
+                                ('Musk, E', '10183', 'SSW 810', 'A', 'Rowland, J'), 
+                                ('Gates, B', '11714', 'SSW 810', 'B-', 'Rowland, J'), 
+                                ('Gates, B', '11714', 'CS 546', 'A', 'Cohen, R'), 
+                                ('Gates, B', '11714', 'CS 570', 'A-', 'Hawking, S')]
+
+        generated_rows:List[str] = []
+        try:
+            # db_path is set to find the file "Student_Repository.db" in the directory given in University's __init__()
+            db_path:str = os.path.join(os.getcwd(), "Student_Repository.db")
+
+            db:sqlite3.Connection = sqlite3.connect(db_path)
+            for row in db.execute("select s.Name as StudentName, s.CWID as StudentCWID, Course, Grade, i.Name as InstructorName From students s left join grades g on s.CWID = g.StudentCWID join instructors i on g.InstructorCWID = i.CWID"):
+                generated_rows.append(row)
+            db.close()
+            
+        except sqlite3.OperationalError:
+            print(f"ERROR - {db_path} NOT A VALID .db FILE")
+
+        self.assertEqual(expected_rows, generated_rows)
+        
 
 if __name__ == "__main__":
     unittest.main(exit=False, verbosity=2)
